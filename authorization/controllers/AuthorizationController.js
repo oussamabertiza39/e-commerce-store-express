@@ -21,96 +21,97 @@ const generateAccessToken = (username, userId) => {
 
 // Encrypts the password using SHA256 Algorithm, for enhanced security of the password
 const encryptPassword = (password) => {
-  // We will hash the password using SHA256 Algorithm before storing in the DB
-  // Creating SHA-256 hash object
   const hash = crypto.createHash("sha256");
-  // Update the hash object with the string to be encrypted
   hash.update(password);
-  // Get the encrypted value in hexadecimal format
   return hash.digest("hex");
 };
 
 module.exports = {
-  register: (req, res) => {
-    const payload = req.body;
+  register: async (req, res) => {
+    try {
+      const payload = req.body;
+      const encryptedPassword = encryptPassword(payload.password);
+      
+      // Set default role if not provided
+      payload.role = payload.role || roles.USER;
 
-    let encryptedPassword = encryptPassword(payload.password);
-    let role = payload.role;
-
-    if (!role) {
-      role = roles.USER;
-    }
-
-    UserModel.createUser(
-      Object.assign(payload, { password: encryptedPassword, role })
-    )
-      .then((user) => {
-        // Generating an AccessToken for the user, which will be
-        // required in every subsequent request.
-        const accessToken = generateAccessToken(payload.username, user.id);
-
-        return res.status(200).json({
-          status: true,
-          data: {
-            user: user.toJSON(),
-            token: accessToken,
-          },
-        });
-      })
-      .catch((err) => {
-        return res.status(500).json({
-          status: false,
-          error: err,
-        });
+      // Create user with encrypted password
+      const user = await UserModel.createUser({
+        ...payload,
+        password: encryptedPassword,
       });
+
+      // Generate access token using MongoDB's _id
+      const accessToken = generateAccessToken(payload.username, user._id);
+
+      res.status(201).json({
+        status: true,
+        data: {
+          user: {
+            _id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            age: user.age,
+          },
+          token: accessToken,
+        },
+      });
+    } catch (err) {
+      // Handle duplicate key errors (MongoDB error code 11000)
+      if (err.code === 11000) {
+        return res.status(400).json({
+          status: false,
+          error: "Username or email already exists",
+        });
+      }
+      res.status(500).json({ status: false, error: err.message });
+    }
   },
 
-  login: (req, res) => {
-    const { username, password } = req.body;
+  login: async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      const user = await UserModel.findUser({ username });
 
-    UserModel.findUser({ username })
-      .then((user) => {
-        // IF user is not found with the given username
-        // THEN Return user not found error
-        if (!user) {
-          return res.status(400).json({
-            status: false,
-            error: {
-              message: `Could not find any user with username: \`${username}\`.`,
-            },
-          });
-        }
-
-        const encryptedPassword = encryptPassword(password);
-
-        // IF Provided password does not match with the one stored in the DB
-        // THEN Return password mismatch error
-        if (user.password !== encryptedPassword) {
-          return res.status(400).json({
-            status: false,
-            error: {
-              message: `Provided username and password did not match.`,
-            },
-          });
-        }
-
-        // Generating an AccessToken for the user, which will be
-        // required in every subsequent request.
-        const accessToken = generateAccessToken(user.username, user.id);
-
-        return res.status(200).json({
-          status: true,
-          data: {
-            user: user.toJSON(),
-            token: accessToken,
-          },
-        });
-      })
-      .catch((err) => {
-        return res.status(500).json({
+      if (!user) {
+        return res.status(404).json({
           status: false,
-          error: err,
+          error: "User not found",
         });
+      }
+
+      const encryptedPassword = encryptPassword(password);
+
+      if (user.password !== encryptedPassword) {
+        return res.status(401).json({
+          status: false,
+          error: "Invalid credentials",
+        });
+      }
+
+      // Generate access token using MongoDB's _id
+      const accessToken = generateAccessToken(user.username, user._id);
+
+      res.status(200).json({
+        status: true,
+        data: {
+          user: {
+            _id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            age: user.age,
+          },
+          token: accessToken,
+        },
       });
+    } catch (err) {
+      res.status(500).json({ status: false, error: err.message });
+    }
   },
 };

@@ -1,53 +1,50 @@
-const Express = require("express");
-const app = Express();
+const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
-const { Sequelize } = require("sequelize");
+const mongoose = require("mongoose");
+const { mongoURI } = require("./config");
 
-const { port } = require("./config");
-const PORT = process.env.PORT || port;
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Express Routes Import
+// Routes Import
 const AuthorizationRoutes = require("./authorization/routes");
 const UserRoutes = require("./users/routes");
 const ProductRoutes = require("./products/routes");
 
-// Sequelize model imports
-const UserModel = require("./common/models/User");
-const ProductModel = require("./common/models/Product");
-
-app.use(morgan("tiny"));
+// Middleware Setup
+app.use(morgan("dev"));
 app.use(cors());
+app.use(express.json());
 
-// Middleware that parses the body payloads as JSON to be consumed next set
-// of middlewares and controllers.
-app.use(Express.json());
-
-const sequelize = new Sequelize({
-  dialect: "sqlite",
-  storage: "./storage/data.db", // Path to the file that will store the SQLite DB.
-});
-
-// Initialising the Model on sequelize
-UserModel.initialise(sequelize);
-ProductModel.initialise(sequelize);
-
-// Syncing the models that are defined on sequelize with the tables that alredy exists
-// in the database. It creates models as tables that do not exist in the DB.
-sequelize
-  .sync()
+// MongoDB Connection
+mongoose
+  .connect(mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => {
-    console.log("Sequelize Initialised!!");
-
-    // Attaching the Authentication and User Routes to the app.
-    app.use("/", AuthorizationRoutes);
-    app.use("/user", UserRoutes);
-    app.use("/product", ProductRoutes);
-
-    app.listen(PORT, () => {
-      console.log("Server Listening on PORT:", port);
-    });
+    console.log("MongoDB Connected Successfully");
   })
   .catch((err) => {
-    console.error("Sequelize Initialisation threw an error:", err);
+    console.error("MongoDB Connection Error:", err);
+    process.exit(1);
   });
+
+// Routes Setup
+app.use("/", AuthorizationRoutes);
+app.use("/user", UserRoutes);
+app.use("/product", ProductRoutes);
+
+// Health Check Endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+  });
+});
+
+// Start Server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

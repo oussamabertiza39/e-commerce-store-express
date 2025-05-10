@@ -1,65 +1,46 @@
-const { DataTypes } = require("sequelize");
-const { productPriceUnits } = require("../../config");
+const mongoose = require('mongoose');
+const { productPriceUnits } = require('../../config');
 
-const ProductModel = {
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true,
+// Define Mongoose Schema
+const productSchema = new mongoose.Schema({
+  name: { 
+    type: String, 
+    required: true 
   },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false,
+  description: { 
+    type: String, 
+    required: true 
   },
-  description: {
-    type: DataTypes.STRING,
-    allowNull: false
+  image: { 
+    type: String, 
+    required: true 
   },
-  image: {
-    type: DataTypes.STRING,
-    allowNull: false,
+  price: { 
+    type: Number, 
+    required: true 
   },
-  price: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
+  priceUnit: { 
+    type: String, 
+    required: true, 
+    default: productPriceUnits.DOLLAR 
   },
-  priceUnit: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    defaultValue: productPriceUnits.DOLLAR,
-  },
-};
+});
+
+// Create Mongoose Model
+const Product = mongoose.model('Product', productSchema);
 
 module.exports = {
-  initialise: (sequelize) => {
-    this.model = sequelize.define("product", ProductModel)
-  },
+  model: Product,
 
-  createProduct: (user) => {
-    return this.model.create(user);
-  },
-
-  findProduct: (query) => {
-    return this.model.findOne({
-      where: query,
-    });
-  },
-
-  updateProduct: (query, updatedValue) => {
-    return this.model.update(updatedValue, {
-      where: query,
-    });
-  },
-
-  findAllProducts: (query) => {
-    return this.model.findAll({
-      where: query
-    });
-  },
-
-  deleteProduct: (query) => {
-    return this.model.destroy({
-      where: query
-    });
-  }
-}
+  // CRUD Methods (Mongoose syntax)
+  createProduct: (productData) => Product.create(productData),
+  
+  findProduct: (query) => Product.findOne(query),
+  
+  updateProduct: (query, updatedData) => 
+    Product.updateOne(query, { $set: updatedData }),
+  
+  findAllProducts: (query) => Product.find(query),
+  
+  deleteProduct: (query) => Product.deleteOne(query)
+};

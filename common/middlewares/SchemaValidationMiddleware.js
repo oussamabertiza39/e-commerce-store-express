@@ -1,37 +1,23 @@
-const Ajv = require('ajv').default,
-  AJV_OPTS = {allErrors: true};
+const Ajv = require('ajv').default;
+const ajv = new Ajv({ allErrors: true });
 
 module.exports = {
-
-  /**
-   * @description Compiles the schema provided in argument and validates the data for the
-   * compiled schema, and returns errors if any
-   *
-   * @param {Object} schema - AJV Schema to validate against
-   *
-   * @returns {Function} - Express request handler
-   */
   verify: (schema) => {
-    if (!schema) {
-      throw new Error('Schema not provided');
-    }
+    if (!schema) throw new Error('Schema not provided');
 
     return (req, res, next) => {
-      const { body } = req;
-      const ajv = new Ajv(AJV_OPTS);
       const validate = ajv.compile(schema);
-      const isValid = validate(body);
+      const isValid = validate(req.body);
 
-      if (isValid) {
-        return next();
-      }
+      if (isValid) return next();
 
-      return res.send({
+      return res.status(400).json({
         status: false,
         error: {
-          message: `Invalid Payload: ${ajv.errorsText(validate.errors)}`
-        }
+          message: `Invalid Payload: ${ajv.errorsText(validate.errors)}`,
+          details: validate.errors,
+        },
       });
-    }
-  }
+    };
+  },
 };
